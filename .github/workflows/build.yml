@@ -1,16 +1,12 @@
-name: 🚀 TitanChart — Build & Release
+name: 🚀 TitanChart — Build, Test & Release
 
-# ─────────────────────────────────────────────
-# TRIGGERS
-# ─────────────────────────────────────────────
 on:
   push:
     branches: [main, develop]
-    tags:
-      - "v*.*.*"           # e.g. v1.0.0  → triggers a full release build
+    tags:     ["v*.*.*"]
   pull_request:
     branches: [main]
-  workflow_dispatch:       # Manual trigger from GitHub UI
+  workflow_dispatch:
     inputs:
       build_type:
         description: "Build type"
@@ -19,42 +15,30 @@ on:
         type: choice
         options: [release, debug, both]
       version_override:
-        description: "Override version name (e.g. 2.1.0). Leave blank to auto-detect."
+        description: "Version override (e.g. 2.1.0). Leave blank to auto-detect."
         required: false
         default: ""
       notify:
-        description: "Send Telegram notification when done?"
+        description: "Send Telegram notification?"
         required: true
         default: "true"
         type: boolean
 
-# ─────────────────────────────────────────────
-# GLOBAL ENV
-# ─────────────────────────────────────────────
 env:
   NODE_VERSION: "20"
   JAVA_VERSION: "17"
   APP_NAME: "TitanChart"
-  PACKAGE_NAME: "com.titanchart.app"      # ← change to your package name
-  ANDROID_COMPILE_SDK: "34"
-  ANDROID_MIN_SDK: "24"
-  ANDROID_TARGET_SDK: "34"
 
-# ─────────────────────────────────────────────
-# JOBS
-# ─────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
 jobs:
 
-  # ══════════════════════════════════════════
-  # JOB 1 — LINT & UNIT TESTS
-  # ══════════════════════════════════════════
+  # ── JOB 1: Lint + Unit Tests ────────────────────────────────────────────────
   lint-and-test:
     name: 🔍 Lint & Unit Tests
     runs-on: ubuntu-latest
-    if: github.event_name != 'workflow_dispatch' || inputs.build_type != 'skip-tests'
 
     steps:
-      - name: 📥 Checkout code
+      - name: 📥 Checkout
         uses: actions/checkout@v4
 
       - name: 🟢 Setup Node.js ${{ env.NODE_VERSION }}
@@ -66,67 +50,112 @@ jobs:
       - name: 📦 Install dependencies
         run: npm ci --prefer-offline
 
-      - name: 🔎 Lint (ESLint)
+      - name: 🔎 ESLint
         run: npm run lint --if-present
 
-      - name: 🧪 Run unit tests
-        run: npm run test --if-present -- --passWithNoTests --coverage
+      - name: 🧪 Unit tests with coverage
+        run: npm run test -- --coverage
+        env:
+          VITE_BOT_TOKEN: "test_token_ci"
+          VITE_CHAT_ID:   "000000000"
 
-      - name: 📊 Upload test coverage
+      - name: 📊 Upload coverage report
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: test-coverage
+          name: coverage-report
           path: coverage/
           retention-days: 7
 
-  # ══════════════════════════════════════════
-  # JOB 2 — ANDROID BUILD
-  # ══════════════════════════════════════════
+      - name: 📋 Test summary
+        if: always()
+        run: |
+          echo "## 🧪 Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f coverage/coverage-summary.json ]; then
+            node -e "
+              const s = require('./coverage/coverage-summary.json').total;
+              console.log('| Metric | Coverage |');
+              console.log('|--------|----------|');
+              ['lines','statements','functions','branches'].forEach(k =>
+                console.log(\`| \${k} | \${s[k].pct}% |\`)
+              );
+            " >> $GITHUB_STEP_SUMMARY 2>/dev/null || true
+          fi
+
+  # ── JOB 2: Web Build ────────────────────────────────────────────────────────
+  build-web:
+    name: 🌐 Build Web App
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: 📦 Install dependencies
+        run: npm ci --prefer-offline
+
+      - name: 🏗️ Build web app (Vite)
+        run: npm run build
+        env:
+          # Bot token & chat ID are injected at build time from secrets
+          # They become compile-time constants — NOT exposed in any API call on server
+          VITE_BOT_TOKEN: ${{ secrets.VITE_BOT_TOKEN }}
+          VITE_CHAT_ID:   ${{ secrets.VITE_CHAT_ID }}
+
+      - name: 🔍 Verify dist output
+        run: |
+          echo "📁 Built files:"
+          ls -lah dist/
+          [ -f dist/index.html ] && echo "✅ index.html exists" || (echo "❌ index.html missing" && exit 1)
+
+      - name: 📤 Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: dist/
+          retention-days: 1
+
+  # ── JOB 3: Android Build ────────────────────────────────────────────────────
   build-android:
     name: 🤖 Android Build (${{ inputs.build_type || 'release' }})
     runs-on: ubuntu-latest
-    needs: lint-and-test
-    if: |
-      always() &&
-      (needs.lint-and-test.result == 'success' || needs.lint-and-test.result == 'skipped')
+    needs: build-web
 
     outputs:
       version_name: ${{ steps.version.outputs.version_name }}
       version_code: ${{ steps.version.outputs.version_code }}
-      apk_path: ${{ steps.paths.outputs.apk_path }}
-      aab_path: ${{ steps.paths.outputs.aab_path }}
 
     steps:
-      # ─── Checkout ─────────────────────────
-      - name: 📥 Checkout code
+      - name: 📥 Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0    # needed for git tag version detection
+          fetch-depth: 0
 
-      # ─── Versions ─────────────────────────
       - name: 🏷️ Determine version
         id: version
         run: |
-          # Priority: manual override → git tag → package.json → fallback
           if [[ -n "${{ inputs.version_override }}" ]]; then
-            VERSION_NAME="${{ inputs.version_override }}"
+            V="${{ inputs.version_override }}"
           elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            VERSION_NAME="${GITHUB_REF#refs/tags/v}"
+            V="${GITHUB_REF#refs/tags/v}"
           elif [[ -f "package.json" ]]; then
-            VERSION_NAME=$(node -p "require('./package.json').version" 2>/dev/null || echo "1.0.0")
+            V=$(node -p "require('./package.json').version" 2>/dev/null || echo "1.0.0")
           else
-            VERSION_NAME="1.0.0"
+            V="1.0.0"
           fi
+          CODE=$(git rev-list --count HEAD 2>/dev/null || echo "1")
+          echo "version_name=${V}"    >> $GITHUB_OUTPUT
+          echo "version_code=${CODE}" >> $GITHUB_OUTPUT
+          echo "📦 Version: ${V} (code: ${CODE})"
 
-          # Version code = total git commits (auto-increments on every push)
-          VERSION_CODE=$(git rev-list --count HEAD 2>/dev/null || echo "1")
-
-          echo "version_name=${VERSION_NAME}" >> $GITHUB_OUTPUT
-          echo "version_code=${VERSION_CODE}"  >> $GITHUB_OUTPUT
-          echo "📦 Version: ${VERSION_NAME} (code: ${VERSION_CODE})"
-
-      # ─── Node + Java ──────────────────────
       - name: 🟢 Setup Node.js ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
         with:
@@ -139,248 +168,153 @@ jobs:
           distribution: "temurin"
           java-version: ${{ env.JAVA_VERSION }}
 
-      # ─── Cache ────────────────────────────
-      - name: 💾 Cache Gradle packages
+      - name: 💾 Cache Gradle
         uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
           key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-
+          restore-keys: gradle-${{ runner.os }}-
 
-      - name: 💾 Cache Capacitor build outputs
-        uses: actions/cache@v4
-        with:
-          path: |
-            android/.gradle
-            android/build
-          key: cap-android-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            cap-android-${{ runner.os }}-
-
-      # ─── Install & Web Build ──────────────
-      - name: 📦 Install npm dependencies
+      - name: 📦 Install dependencies
         run: npm ci --prefer-offline
 
-      - name: 🏗️ Build web app
-        run: npm run build --if-present
+      - name: 📥 Download built web dist
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: dist/
 
-      # ─── Capacitor ────────────────────────
-      - name: 📱 Initialize Capacitor Android
+      - name: 📱 Add Capacitor Android platform
         run: |
-          # Only add android platform if it doesn't already exist
           if [ ! -d "android" ]; then
             npx cap add android
-            echo "✅ Android platform added"
           else
-            echo "ℹ️ Android platform already exists, skipping add"
+            echo "ℹ️ android/ already exists"
           fi
 
-      - name: 🔄 Capacitor sync (web → native)
+      - name: 🔄 Capacitor sync
         run: npx cap sync android
 
-      # ─── Patch AndroidManifest ────────────
-      - name: 📋 Configure AndroidManifest.xml
+      - name: 📋 Inject Android permissions
         run: |
-          MANIFEST="android/app/src/main/AndroidManifest.xml"
-
-          # Only inject permissions if not already present
-          inject_perm() {
-            local PERM="$1"
-            if ! grep -q "$PERM" "$MANIFEST"; then
-              sed -i "/<manifest/a\\    <uses-permission android:name=\"$PERM\" />" "$MANIFEST"
-              echo "  ✅ Added: $PERM"
-            else
-              echo "  ✔ Already present: $PERM"
-            fi
+          M="android/app/src/main/AndroidManifest.xml"
+          inject() {
+            grep -q "$1" "$M" || sed -i "/<manifest/a\\    <uses-permission android:name=\"$1\" />" "$M"
           }
+          inject "android.permission.INTERNET"
+          inject "android.permission.ACCESS_NETWORK_STATE"
+          inject "android.permission.WAKE_LOCK"
+          inject "android.permission.VIBRATE"
+          echo "✅ Permissions:"
+          grep "uses-permission" "$M"
 
-          echo "🔐 Injecting permissions..."
-          inject_perm "android.permission.INTERNET"
-          inject_perm "android.permission.WAKE_LOCK"
-          inject_perm "android.permission.FOREGROUND_SERVICE"
-          inject_perm "android.permission.VIBRATE"
-          inject_perm "android.permission.ACCESS_NETWORK_STATE"
-          inject_perm "android.permission.RECEIVE_BOOT_COMPLETED"
-
-          # Enable cleartext traffic for dev APIs (safe for prod if you use HTTPS)
-          if ! grep -q 'android:usesCleartextTraffic' "$MANIFEST"; then
-            sed -i 's/<application/<application android:usesCleartextTraffic="true"/' "$MANIFEST"
-            echo "  ✅ Enabled cleartext traffic"
-          fi
-
-          echo "📄 Final manifest permissions:"
-          grep "uses-permission" "$MANIFEST"
-
-      # ─── Patch Version in build.gradle ────
-      - name: 🔢 Inject version into build.gradle
+      - name: 🔢 Set version in build.gradle
         run: |
-          VERSION_NAME="${{ steps.version.outputs.version_name }}"
-          VERSION_CODE="${{ steps.version.outputs.version_code }}"
+          V="${{ steps.version.outputs.version_name }}"
+          C="${{ steps.version.outputs.version_code }}"
+          sed -i "s/versionCode .*/versionCode ${C}/" android/app/build.gradle
+          sed -i "s/versionName .*/versionName \"${V}\"/" android/app/build.gradle
+          echo "✅ versionCode=${C}, versionName=${V}"
 
-          GRADLE="android/app/build.gradle"
-
-          sed -i "s/versionCode .*/versionCode ${VERSION_CODE}/" "$GRADLE"
-          sed -i "s/versionName .*/versionName \"${VERSION_NAME}\"/" "$GRADLE"
-
-          echo "✅ Set versionCode=${VERSION_CODE}, versionName=${VERSION_NAME}"
-          grep -E "versionCode|versionName" "$GRADLE"
-
-      # ─── Decode Keystore ──────────────────
-      - name: 🔑 Decode keystore from secret
+      - name: 🔑 Decode keystore
         run: |
-          # The keystore is stored as a base64 secret.
-          # To generate: base64 -w 0 your-keystore.jks > keystore_b64.txt
-          # Then paste the content as KEYSTORE_BASE64 secret.
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/release.keystore
-
-          # Verify the keystore loaded correctly
           keytool -list \
             -keystore android/app/release.keystore \
             -storepass "${{ secrets.SIGNING_STORE_PASSWORD }}" \
             -noprompt 2>/dev/null && echo "✅ Keystore verified" || {
-              echo "❌ Keystore verification failed — check KEYSTORE_BASE64 secret"
+              echo "❌ Keystore invalid — check KEYSTORE_BASE64 secret"
               exit 1
             }
 
-      # ─── Configure Signing ────────────────
-      - name: ⚙️ Configure app signing in build.gradle
+      - name: ⚙️ Configure signing
         run: |
-          GRADLE="android/app/build.gradle"
-
-          # Check if signingConfigs already exists (avoid duplicate injection)
-          if grep -q "signingConfigs" "$GRADLE"; then
-            echo "ℹ️ signingConfigs block already present in build.gradle"
-          else
-            cat >> "$GRADLE" << 'GRADLE_EOF'
+          G="android/app/build.gradle"
+          grep -q "signingConfigs" "$G" || cat >> "$G" << 'EOF'
 
           android {
               signingConfigs {
                   release {
-                      storeFile file("release.keystore")
+                      storeFile     file("release.keystore")
                       storePassword System.getenv("SIGNING_STORE_PASSWORD")
-                      keyAlias System.getenv("SIGNING_KEY_ALIAS")
-                      keyPassword System.getenv("SIGNING_KEY_PASSWORD")
+                      keyAlias      System.getenv("SIGNING_KEY_ALIAS")
+                      keyPassword   System.getenv("SIGNING_KEY_PASSWORD")
                   }
               }
               buildTypes {
                   release {
-                      minifyEnabled true
-                      shrinkResources true
-                      proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
-                      signingConfig signingConfigs.release
+                      minifyEnabled     true
+                      shrinkResources   true
+                      proguardFiles     getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+                      signingConfig     signingConfigs.release
                   }
                   debug {
                       applicationIdSuffix ".debug"
-                      versionNameSuffix "-debug"
-                      debuggable true
+                      versionNameSuffix   "-debug"
+                      debuggable          true
                   }
               }
           }
-          GRADLE_EOF
-            echo "✅ Signing config injected into build.gradle"
-          fi
+          EOF
+          echo "✅ Signing configured"
 
-      # ─── Build APK + AAB ──────────────────
       - name: 🔨 Build Release APK + AAB
-        if: inputs.build_type == 'release' || inputs.build_type == 'both' || inputs.build_type == ''
         env:
           SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
-          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
-          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          SIGNING_KEY_ALIAS:      ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD:   ${{ secrets.SIGNING_KEY_PASSWORD }}
         run: |
-          cd android
-          chmod +x gradlew
-
-          echo "🔨 Building release APK..."
-          ./gradlew assembleRelease \
-            --no-daemon \
-            --stacktrace \
-            -Pandroid.testInstrumentationRunnerArguments.class= \
-            2>&1 | tail -50
-
-          echo "📦 Building release AAB (Play Store)..."
-          ./gradlew bundleRelease \
-            --no-daemon \
-            2>&1 | tail -30
-
-          echo "✅ Build complete!"
+          cd android && chmod +x gradlew
+          echo "▶ assembleRelease..."
+          ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tail -40
+          echo "▶ bundleRelease (AAB)..."
+          ./gradlew bundleRelease  --no-daemon               2>&1 | tail -20
 
       - name: 🔨 Build Debug APK
         if: inputs.build_type == 'debug' || inputs.build_type == 'both'
         run: |
-          cd android
-          chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon 2>&1 | tail -30
-          echo "✅ Debug APK built"
+          cd android && ./gradlew assembleDebug --no-daemon 2>&1 | tail -20
 
-      # ─── Rename artifacts ─────────────────
-      - name: 📝 Rename build outputs with version
-        id: paths
+      - name: 📝 Rename artifacts
         run: |
-          VERSION="${{ steps.version.outputs.version_name }}"
-          DATE=$(date +%Y%m%d)
+          V="${{ steps.version.outputs.version_name }}"
+          D=$(date +%Y%m%d)
+          APK="android/app/build/outputs/apk/release/app-release.apk"
+          AAB="android/app/build/outputs/bundle/release/app-release.aab"
+          [ -f "$APK" ] && mv "$APK" "android/app/build/outputs/apk/release/TitanChart-v${V}-${D}.apk"
+          [ -f "$AAB" ] && mv "$AAB" "android/app/build/outputs/bundle/release/TitanChart-v${V}-${D}.aab"
+          echo "📦 Artifacts:"
+          find android/app/build/outputs -name "*.apk" -o -name "*.aab"
 
-          APK_SRC="android/app/build/outputs/apk/release/app-release.apk"
-          AAB_SRC="android/app/build/outputs/bundle/release/app-release.aab"
-          APK_DBG="android/app/build/outputs/apk/debug/app-debug.apk"
-
-          APK_OUT="android/app/build/outputs/apk/release/TitanChart-v${VERSION}-${DATE}.apk"
-          AAB_OUT="android/app/build/outputs/bundle/release/TitanChart-v${VERSION}-${DATE}.aab"
-          DBG_OUT="android/app/build/outputs/apk/debug/TitanChart-v${VERSION}-debug-${DATE}.apk"
-
-          [ -f "$APK_SRC" ] && mv "$APK_SRC" "$APK_OUT" && echo "apk_path=${APK_OUT}" >> $GITHUB_OUTPUT
-          [ -f "$AAB_SRC" ] && mv "$AAB_SRC" "$AAB_OUT" && echo "aab_path=${AAB_OUT}" >> $GITHUB_OUTPUT
-          [ -f "$APK_DBG" ] && mv "$APK_DBG" "$DBG_OUT"
-
-          echo "📁 Build outputs:"
-          find android/app/build/outputs -name "*.apk" -o -name "*.aab" | head -10
-
-      # ─── Upload Artifacts ─────────────────
       - name: 📤 Upload Release APK
         uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: TitanChart-APK-v${{ steps.version.outputs.version_name }}
           path: android/app/build/outputs/apk/release/*.apk
           retention-days: 30
           if-no-files-found: warn
 
-      - name: 📤 Upload Release AAB (Play Store)
+      - name: 📤 Upload Release AAB
         uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: TitanChart-AAB-v${{ steps.version.outputs.version_name }}
           path: android/app/build/outputs/bundle/release/*.aab
           retention-days: 30
           if-no-files-found: warn
 
-      - name: 📤 Upload Debug APK
-        uses: actions/upload-artifact@v4
-        if: inputs.build_type == 'debug' || inputs.build_type == 'both'
-        with:
-          name: TitanChart-Debug-APK-v${{ steps.version.outputs.version_name }}
-          path: android/app/build/outputs/apk/debug/*.apk
-          retention-days: 7
-          if-no-files-found: warn
-
-      - name: 📤 Upload build logs (on failure)
+      - name: 📤 Upload build logs on failure
         uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: build-logs-${{ github.run_number }}
-          path: |
-            android/app/build/reports/
-            android/build/reports/
+          path: android/app/build/reports/
           retention-days: 7
 
-  # ══════════════════════════════════════════
-  # JOB 3 — CREATE GITHUB RELEASE (on tag)
-  # ══════════════════════════════════════════
+  # ── JOB 4: GitHub Release (on tag) ─────────────────────────────────────────
   create-release:
-    name: 🎉 Create GitHub Release
+    name: 🎉 GitHub Release
     runs-on: ubuntu-latest
     needs: build-android
     if: startsWith(github.ref, 'refs/tags/v') && needs.build-android.result == 'success'
@@ -389,111 +323,88 @@ jobs:
       - name: 📥 Checkout
         uses: actions/checkout@v4
 
-      - name: 📥 Download APK artifact
+      - name: 📥 Download APK
         uses: actions/download-artifact@v4
         with:
           name: TitanChart-APK-v${{ needs.build-android.outputs.version_name }}
           path: ./release-files/
 
-      - name: 📥 Download AAB artifact
+      - name: 📥 Download AAB
         uses: actions/download-artifact@v4
         with:
           name: TitanChart-AAB-v${{ needs.build-android.outputs.version_name }}
           path: ./release-files/
 
-      - name: 📋 Generate release notes
-        id: release_notes
-        run: |
-          VERSION="${{ needs.build-android.outputs.version_name }}"
-          CODE="${{ needs.build-android.outputs.version_code }}"
-          DATE=$(date +"%B %d, %Y")
-
-          NOTES="## TitanChart v${VERSION}
-          **Build:** #${CODE} — Released on ${DATE}
-
-          ### 📥 Downloads
-          | File | Description |
-          |------|-------------|
-          | \`TitanChart-v${VERSION}.apk\` | Install directly on Android device |
-          | \`TitanChart-v${VERSION}.aab\` | Upload to Google Play Store |
-
-          ### 📋 Changelog
-          $(git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 HEAD^)..HEAD 2>/dev/null | head -20 || echo "- Initial release")
-
-          ### 📱 Requirements
-          - Android 7.0+ (API 24)
-          - ~10 MB storage
-
-          ### ⚠️ Installation (APK sideload)
-          1. Enable **Unknown Sources** in Settings → Security
-          2. Open the downloaded APK
-          3. Follow the install prompts"
-
-          echo "notes<<EOF" >> $GITHUB_OUTPUT
-          echo "$NOTES"     >> $GITHUB_OUTPUT
-          echo "EOF"         >> $GITHUB_OUTPUT
-
       - name: 🚀 Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: "TitanChart v${{ needs.build-android.outputs.version_name }}"
-          body: ${{ steps.release_notes.outputs.notes }}
+          body: |
+            ## 📱 TitanChart v${{ needs.build-android.outputs.version_name }}
+
+            ### 📥 Downloads
+            | File | Use |
+            |------|-----|
+            | `.apk` | Install directly on Android |
+            | `.aab` | Upload to Google Play Store |
+
+            ### 📋 Changes
+            ${{ github.event.head_commit.message }}
+
+            ### 📱 Requirements
+            - Android 7.0+ (API 24)
           draft: false
-          prerelease: ${{ contains(needs.build-android.outputs.version_name, '-beta') || contains(needs.build-android.outputs.version_name, '-alpha') }}
-          files: |
-            ./release-files/*.apk
-            ./release-files/*.aab
+          prerelease: ${{ contains(needs.build-android.outputs.version_name, 'beta') || contains(needs.build-android.outputs.version_name, 'alpha') }}
+          files: ./release-files/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  # ══════════════════════════════════════════
-  # JOB 4 — NOTIFY
-  # ══════════════════════════════════════════
+  # ── JOB 5: Notify ───────────────────────────────────────────────────────────
   notify:
-    name: 📣 Notify
+    name: 📣 Telegram Notify
     runs-on: ubuntu-latest
-    needs: [lint-and-test, build-android]
-    if: always() && (inputs.notify == 'true' || github.event_name != 'workflow_dispatch')
+    needs: [lint-and-test, build-web, build-android]
+    if: always()
 
     steps:
-      - name: 📣 Send Telegram notification
-        if: secrets.TELEGRAM_BOT_TOKEN != '' && secrets.TELEGRAM_CHAT_ID != ''
+      - name: 📣 Send notification
+        if: secrets.TELEGRAM_BOT_TOKEN != ''
         run: |
-          BUILD_STATUS="${{ needs.build-android.result }}"
+          STATUS="${{ needs.build-android.result }}"
+          TESTS="${{ needs.lint-and-test.result }}"
           VERSION="${{ needs.build-android.outputs.version_name }}"
-          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-          if [[ "$BUILD_STATUS" == "success" ]]; then
-            ICON="✅"
-            STATUS_TEXT="Build Successful"
+          if [[ "$STATUS" == "success" ]]; then
+            ICON="✅"; TEXT="Build Successful"
+          elif [[ "$STATUS" == "skipped" ]]; then
+            ICON="⏭️"; TEXT="Build Skipped"
           else
-            ICON="❌"
-            STATUS_TEXT="Build Failed"
+            ICON="❌"; TEXT="Build Failed"
           fi
 
-          MESSAGE="${ICON} *TitanChart — ${STATUS_TEXT}*
+          MSG="${ICON} *TitanChart — ${TEXT}*
           📦 Version: \`v${VERSION}\`
+          🧪 Tests: \`${TESTS}\`
           🌿 Branch: \`${{ github.ref_name }}\`
-          👤 Triggered by: ${{ github.actor }}
-          🔗 [View Build](${RUN_URL})"
+          👤 By: ${{ github.actor }}
+          🔗 [View Build](${URL})"
 
           curl -s -X POST \
             "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
             -d "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
-            -d "text=${MESSAGE}" \
+            -d "text=${MSG}" \
             -d "parse_mode=Markdown" \
-            -d "disable_web_page_preview=true"
+            -d "disable_web_page_preview=true" > /dev/null
 
-      - name: 📊 Build summary
+      - name: 📊 Pipeline summary
         run: |
-          echo "## 🚀 TitanChart Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Step | Result |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Lint & Tests | ${{ needs.lint-and-test.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Android Build | ${{ needs.build-android.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "## 🚀 Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔍 Lint & Tests | ${{ needs.lint-and-test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🌐 Web Build    | ${{ needs.build-web.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🤖 Android      | ${{ needs.build-android.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Version:** \`v${{ needs.build-android.outputs.version_name }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Build Code:** \`${{ needs.build-android.outputs.version_code }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.actor }} on \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
