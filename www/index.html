@@ -2,472 +2,77 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>WebToAPK — Build Web Apps for Android</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>My App</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #0f172a;
-      color: #e2e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       min-height: 100vh;
-    }
-
-    /* NAV */
-    nav {
       display: flex;
-      justify-content: space-between;
+      flex-direction: column;
       align-items: center;
-      padding: 1.2rem 2rem;
-      background: rgba(15,23,42,0.95);
-      border-bottom: 1px solid #1e293b;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-    }
-
-    .nav-logo {
-      font-size: 1.4rem;
-      font-weight: 800;
-      color: #38bdf8;
-      letter-spacing: -0.5px;
-    }
-
-    .nav-links { display: flex; gap: 2rem; }
-    .nav-links a {
-      color: #94a3b8;
-      text-decoration: none;
-      font-size: 0.9rem;
-      font-weight: 500;
-      transition: color 0.2s;
-    }
-    .nav-links a:hover { color: #e2e8f0; }
-
-    /* HERO */
-    .hero {
-      text-align: center;
-      padding: 6rem 1.5rem 4rem;
-      max-width: 800px;
-      margin: 0 auto;
-    }
-
-    .badge {
-      display: inline-block;
-      background: #1e293b;
-      border: 1px solid #334155;
-      color: #38bdf8;
-      font-size: 0.78rem;
-      font-weight: 600;
-      padding: 0.3rem 1rem;
-      border-radius: 999px;
-      margin-bottom: 1.5rem;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-    }
-
-    .hero h1 {
-      font-size: clamp(2.2rem, 5vw, 3.5rem);
-      font-weight: 900;
-      line-height: 1.1;
-      margin-bottom: 1.25rem;
-      background: linear-gradient(135deg, #e2e8f0 0%, #38bdf8 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .hero p {
-      font-size: 1.15rem;
-      color: #94a3b8;
-      max-width: 560px;
-      margin: 0 auto 2.5rem;
-      line-height: 1.7;
-    }
-
-    .hero-buttons {
-      display: flex;
-      gap: 1rem;
       justify-content: center;
-      flex-wrap: wrap;
+      padding: 2rem;
+      color: white;
     }
-
-    .btn-primary {
-      background: #38bdf8;
-      color: #0f172a;
+    .card {
+      background: rgba(255,255,255,0.15);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 20px;
+      padding: 2.5rem 2rem;
+      text-align: center;
+      max-width: 340px;
+      width: 100%;
+    }
+    .icon { font-size: 3.5rem; margin-bottom: 1rem; }
+    h1 { font-size: 1.8rem; font-weight: 800; margin-bottom: 0.5rem; }
+    p { opacity: 0.85; font-size: 0.95rem; line-height: 1.6; margin-bottom: 1.5rem; }
+    .btn {
+      display: block;
+      background: white;
+      color: #764ba2;
       font-weight: 700;
-      font-size: 0.95rem;
-      padding: 0.8rem 1.8rem;
-      border-radius: 8px;
-      text-decoration: none;
-      transition: background 0.2s, transform 0.1s;
-    }
-    .btn-primary:hover { background: #7dd3fc; transform: translateY(-1px); }
-
-    .btn-secondary {
-      background: transparent;
-      color: #e2e8f0;
-      font-weight: 600;
-      font-size: 0.95rem;
-      padding: 0.8rem 1.8rem;
-      border-radius: 8px;
-      border: 1px solid #334155;
-      text-decoration: none;
-      transition: border-color 0.2s, background 0.2s;
-    }
-    .btn-secondary:hover { border-color: #38bdf8; background: #1e293b; }
-
-    /* STATS */
-    .stats {
-      display: flex;
-      justify-content: center;
-      gap: 3rem;
-      padding: 2rem 1.5rem;
-      border-top: 1px solid #1e293b;
-      border-bottom: 1px solid #1e293b;
-      background: #0d1526;
-      flex-wrap: wrap;
-    }
-
-    .stat { text-align: center; }
-    .stat-number {
-      font-size: 1.8rem;
-      font-weight: 800;
-      color: #38bdf8;
-    }
-    .stat-label {
-      font-size: 0.8rem;
-      color: #64748b;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-top: 0.2rem;
-    }
-
-    /* HOW IT WORKS */
-    .section {
-      max-width: 1000px;
-      margin: 5rem auto;
-      padding: 0 1.5rem;
-    }
-
-    .section-title {
-      text-align: center;
-      font-size: 1.9rem;
-      font-weight: 800;
+      font-size: 1rem;
+      padding: 0.85rem;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      width: 100%;
       margin-bottom: 0.75rem;
-      color: #f1f5f9;
+      transition: transform 0.1s, opacity 0.2s;
     }
-
-    .section-sub {
-      text-align: center;
-      color: #64748b;
-      margin-bottom: 3rem;
-      font-size: 1rem;
-    }
-
-    .steps {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 1.5rem;
-    }
-
-    .step {
-      background: #111827;
-      border: 1px solid #1e293b;
-      border-radius: 12px;
-      padding: 1.75rem 1.5rem;
-      transition: border-color 0.2s, transform 0.2s;
-    }
-    .step:hover { border-color: #38bdf8; transform: translateY(-3px); }
-
-    .step-num {
-      width: 36px;
-      height: 36px;
-      background: #1e3a5f;
-      color: #38bdf8;
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 800;
-      font-size: 1rem;
-      margin-bottom: 1rem;
-    }
-
-    .step h3 {
-      font-size: 1rem;
-      font-weight: 700;
-      color: #f1f5f9;
-      margin-bottom: 0.5rem;
-    }
-    .step p { font-size: 0.875rem; color: #64748b; line-height: 1.6; }
-
-    /* FEATURES */
-    .features {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 1.5rem;
-    }
-
-    .feature {
-      background: #111827;
-      border: 1px solid #1e293b;
-      border-radius: 12px;
-      padding: 1.75rem;
-    }
-
-    .feature-icon {
-      font-size: 1.8rem;
-      margin-bottom: 1rem;
-    }
-
-    .feature h3 {
-      font-size: 1rem;
-      font-weight: 700;
-      color: #f1f5f9;
-      margin-bottom: 0.5rem;
-    }
-    .feature p { font-size: 0.875rem; color: #64748b; line-height: 1.6; }
-
-    /* CODE BLOCK */
-    .code-block {
-      background: #0d1526;
-      border: 1px solid #1e293b;
-      border-radius: 12px;
-      padding: 1.5rem 2rem;
-      font-family: 'Courier New', monospace;
-      font-size: 0.85rem;
-      color: #94a3b8;
-      line-height: 1.8;
-      overflow-x: auto;
-    }
-    .code-block .comment { color: #475569; }
-    .code-block .cmd     { color: #38bdf8; }
-    .code-block .arg     { color: #86efac; }
-
-    /* CTA */
-    .cta {
-      text-align: center;
-      padding: 5rem 1.5rem;
-      background: linear-gradient(135deg, #0f2744 0%, #0f172a 100%);
-      border-top: 1px solid #1e293b;
-    }
-    .cta h2 { font-size: 2rem; font-weight: 800; margin-bottom: 1rem; }
-    .cta p  { color: #94a3b8; margin-bottom: 2rem; font-size: 1.05rem; }
-
-    /* FOOTER */
-    footer {
-      background: #080d18;
-      border-top: 1px solid #1e293b;
-      padding: 1.5rem;
-      text-align: center;
-      color: #475569;
-      font-size: 0.85rem;
-    }
-    footer a { color: #38bdf8; text-decoration: none; }
-
-    /* PIPELINE DIAGRAM */
-    .pipeline {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      flex-wrap: wrap;
-      padding: 2rem 1rem;
-      background: #0d1526;
-      border-radius: 12px;
-      border: 1px solid #1e293b;
-      margin-top: 2rem;
-    }
-    .pipe-step {
-      background: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 8px;
-      padding: 0.6rem 1rem;
-      font-size: 0.82rem;
-      font-weight: 600;
-      color: #94a3b8;
-      white-space: nowrap;
-    }
-    .pipe-step.active { border-color: #38bdf8; color: #38bdf8; background: #1e3a5f; }
-    .pipe-arrow { color: #334155; font-size: 1rem; }
-
-    @media (max-width: 600px) {
-      .nav-links { display: none; }
-      .stats { gap: 1.5rem; }
+    .btn:active { transform: scale(0.97); opacity: 0.9; }
+    .badge {
+      margin-top: 1.5rem;
+      font-size: 0.75rem;
+      opacity: 0.6;
     }
   </style>
 </head>
 <body>
-
-  <!-- NAV -->
-  <nav>
-    <span class="nav-logo">WebToAPK</span>
-    <div class="nav-links">
-      <a href="#how">How it works</a>
-      <a href="#features">Features</a>
-      <a href="#quickstart">Quickstart</a>
-      <a href="https://github.com/AKIB473/web-to-apk" target="_blank">GitHub</a>
-    </div>
-  </nav>
-
-  <!-- HERO -->
-  <section class="hero">
-    <div class="badge">GitHub Actions CI/CD</div>
-    <h1>Web App to Android APK in Minutes</h1>
-    <p>Push your HTML/JS/React/Vue app and get a signed APK + AAB automatically.
-       No Android Studio. No local setup. Just GitHub.</p>
-    <div class="hero-buttons">
-      <a href="https://github.com/AKIB473/web-to-apk" class="btn-primary" target="_blank">
-        View on GitHub
-      </a>
-      <a href="#quickstart" class="btn-secondary">Quick Setup</a>
-    </div>
-
-    <!-- Pipeline visual -->
-    <div class="pipeline">
-      <div class="pipe-step active">Push Code</div>
-      <span class="pipe-arrow">&#8594;</span>
-      <div class="pipe-step active">Lint + Tests</div>
-      <span class="pipe-arrow">&#8594;</span>
-      <div class="pipe-step active">Build Web</div>
-      <span class="pipe-arrow">&#8594;</span>
-      <div class="pipe-step active">Capacitor Sync</div>
-      <span class="pipe-arrow">&#8594;</span>
-      <div class="pipe-step active">Sign APK + AAB</div>
-      <span class="pipe-arrow">&#8594;</span>
-      <div class="pipe-step active">Upload Artifacts</div>
-    </div>
-  </section>
-
-  <!-- STATS -->
-  <div class="stats">
-    <div class="stat">
-      <div class="stat-number">5</div>
-      <div class="stat-label">Pipeline Jobs</div>
-    </div>
-    <div class="stat">
-      <div class="stat-number">&lt; 6 min</div>
-      <div class="stat-label">Build Time</div>
-    </div>
-    <div class="stat">
-      <div class="stat-number">0</div>
-      <div class="stat-label">Local Setup Needed</div>
-    </div>
-    <div class="stat">
-      <div class="stat-number">Android 7+</div>
-      <div class="stat-label">Minimum Support</div>
-    </div>
+  <div class="card">
+    <div class="icon">🚀</div>
+    <h1>My First App</h1>
+    <p>This is your web app running as a native Android application. Replace the files in <code>www/</code> with your own HTML, CSS and JavaScript.</p>
+    <button class="btn" onclick="alert('Hello from your Android app!')">Tap Me!</button>
+    <button class="btn" onclick="showInfo()">App Info</button>
+    <div class="badge">Built with WebToAPK · github.com/AKIB473/web-to-apk</div>
   </div>
 
-  <!-- HOW IT WORKS -->
-  <section class="section" id="how">
-    <h2 class="section-title">How It Works</h2>
-    <p class="section-sub">Four simple steps from zero to a signed Android app</p>
-    <div class="steps">
-      <div class="step">
-        <div class="step-num">1</div>
-        <h3>Fork &amp; Configure</h3>
-        <p>Fork this repo, set your app name and package ID in <code>capacitor.config.ts</code>.</p>
-      </div>
-      <div class="step">
-        <div class="step-num">2</div>
-        <h3>Add Secrets</h3>
-        <p>Upload your keystore as a base64 secret. Add your signing passwords. Done in 5 minutes.</p>
-      </div>
-      <div class="step">
-        <div class="step-num">3</div>
-        <h3>Push Your Code</h3>
-        <p>Put your web app in the <code>www/</code> folder. Push to <code>main</code>. CI runs automatically.</p>
-      </div>
-      <div class="step">
-        <div class="step-num">4</div>
-        <h3>Download APK</h3>
-        <p>Find your signed APK and AAB in GitHub Actions &rarr; Artifacts. Ready to install or upload to Play Store.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- FEATURES -->
-  <section class="section" id="features">
-    <h2 class="section-title">Features</h2>
-    <p class="section-sub">Everything you need for a production Android build</p>
-    <div class="features">
-      <div class="feature">
-        <div class="feature-icon">&#128274;</div>
-        <h3>Secure Signing</h3>
-        <p>Keystore stored as base64 GitHub Secret. Passwords injected at build time. Nothing in plain text.</p>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">&#9889;</div>
-        <h3>Fast Builds</h3>
-        <p>Gradle and npm caching means repeat builds finish in under 6 minutes.</p>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">&#127942;</div>
-        <h3>Auto Versioning</h3>
-        <p>Version name from git tags or package.json. Version code auto-increments with each commit.</p>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">&#128230;</div>
-        <h3>APK + AAB</h3>
-        <p>Produces both a direct-install APK and a Google Play Store AAB bundle in every release build.</p>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">&#127881;</div>
-        <h3>Auto GitHub Release</h3>
-        <p>Push a version tag like <code>v1.0.0</code> and a GitHub Release is created with files attached.</p>
-      </div>
-      <div class="feature">
-        <div class="feature-icon">&#128202;</div>
-        <h3>Test Coverage</h3>
-        <p>Vitest runs on every push. Coverage report uploaded as artifact. Build fails on test failure.</p>
-      </div>
-    </div>
-  </section>
-
-  <!-- QUICKSTART -->
-  <section class="section" id="quickstart">
-    <h2 class="section-title">Quick Setup</h2>
-    <p class="section-sub">Get a working build in under 15 minutes</p>
-    <div class="code-block">
-      <div><span class="comment"># 1. Clone the repo</span></div>
-      <div><span class="cmd">git clone</span> <span class="arg">https://github.com/AKIB473/web-to-apk.git my-app</span></div>
-      <div><span class="cmd">cd</span> <span class="arg">my-app</span></div>
-      <div>&nbsp;</div>
-      <div><span class="comment"># 2. Put your web files in www/</span></div>
-      <div><span class="cmd">cp</span> <span class="arg">your-site/* www/</span></div>
-      <div>&nbsp;</div>
-      <div><span class="comment"># 3. Generate a keystore (one time only)</span></div>
-      <div><span class="cmd">keytool</span> <span class="arg">-genkey -v -keystore release.jks -alias myapp -keyalg RSA -keysize 2048 -validity 10000</span></div>
-      <div>&nbsp;</div>
-      <div><span class="comment"># 4. Convert keystore to base64 and add as GitHub Secret</span></div>
-      <div><span class="cmd">base64</span> <span class="arg">-i release.jks | tr -d '\n'</span> <span class="comment"># Copy output → KEYSTORE_BASE64 secret</span></div>
-      <div>&nbsp;</div>
-      <div><span class="comment"># 5. Push and watch the build!</span></div>
-      <div><span class="cmd">git add</span> <span class="arg">.</span></div>
-      <div><span class="cmd">git commit</span> <span class="arg">-m "feat: add app"</span></div>
-      <div><span class="cmd">git push</span> <span class="arg">origin main</span></div>
-    </div>
-  </section>
-
-  <!-- CTA -->
-  <section class="cta">
-    <h2>Ready to ship your web app on Android?</h2>
-    <p>Fork the repo, follow the setup guide, and have your first APK in minutes.</p>
-    <a href="https://github.com/AKIB473/web-to-apk" class="btn-primary" target="_blank">
-      Get Started on GitHub
-    </a>
-  </section>
-
-  <!-- FOOTER -->
-  <footer>
-    <p>Built by <a href="https://github.com/AKIB473" target="_blank">AKIBUZZAMAN AKIB</a>
-    &nbsp;&middot;&nbsp;
-    <a href="https://github.com/AKIB473/web-to-apk" target="_blank">Source on GitHub</a>
-    &nbsp;&middot;&nbsp;
-    MIT License</p>
-  </footer>
-
+  <script>
+    function showInfo() {
+      const ua = navigator.userAgent;
+      const info = [
+        'Platform: ' + navigator.platform,
+        'Language: ' + navigator.language,
+        'Screen: ' + screen.width + 'x' + screen.height,
+        'Online: ' + navigator.onLine,
+      ].join('\n');
+      alert('Device Info:\n\n' + info);
+    }
+  </script>
 </body>
 </html>
