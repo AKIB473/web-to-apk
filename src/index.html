@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TitanChart — Contact</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <div class="page-wrapper">
+
+    <!-- ── Header ───────────────────────────────── -->
+    <header class="app-header">
+      <div class="logo">
+        <span class="logo-icon">📊</span>
+        <span class="logo-text">TitanChart</span>
+      </div>
+      <nav>
+        <a href="#contact">Contact</a>
+        <a href="#about">About</a>
+      </nav>
+    </header>
+
+    <!-- ── Hero ─────────────────────────────────── -->
+    <section class="hero">
+      <h1>Send Us a Message</h1>
+      <p>Fill out the form and we'll get back to you on Telegram instantly.</p>
+    </section>
+
+    <!-- ── Contact Form ──────────────────────────── -->
+    <main id="contact" class="main-content">
+      <div class="card">
+
+        <div class="card-header">
+          <div class="telegram-badge">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#0088cc">
+              <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.076 13.44 4.13 12.536c-.638-.204-.651-.638.136-.944l11.387-4.39c.53-.194.995.131.241.019z"/>
+            </svg>
+            Powered by Telegram
+          </div>
+        </div>
+
+        <form id="contact-form" class="contact-form" novalidate>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="name">Full Name <span class="required">*</span></label>
+              <input
+                type="text"
+                id="name"
+                name="name"
+                placeholder="Your full name"
+                autocomplete="name"
+                required
+              />
+              <span class="field-error" id="name-error"></span>
+            </div>
+
+            <div class="form-group">
+              <label for="email">Email Address <span class="required">*</span></label>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                placeholder="you@example.com"
+                autocomplete="email"
+                required
+              />
+              <span class="field-error" id="email-error"></span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="subject">Subject</label>
+            <input
+              type="text"
+              id="subject"
+              name="subject"
+              placeholder="What is this about?"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="message">Message <span class="required">*</span></label>
+            <textarea
+              id="message"
+              name="message"
+              placeholder="Write your message here…"
+              rows="5"
+              required
+            ></textarea>
+            <span class="field-error" id="message-error"></span>
+            <span class="char-count" id="char-count">0 / 1000</span>
+          </div>
+
+          <button type="submit" id="submit-btn" class="btn-primary">
+            <span class="btn-text">Send Message</span>
+            <span class="btn-spinner" hidden>
+              <svg class="spinner" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="white" stroke-width="2" fill="none" stroke-dasharray="31.416" stroke-dashoffset="10"/></svg>
+              Sending…
+            </span>
+          </button>
+
+        </form>
+
+        <!-- Status Messages -->
+        <div id="status-success" class="status-banner status-success" hidden>
+          <span>✅</span>
+          <div>
+            <strong>Message sent successfully!</strong>
+            <p>We'll reply to you via Telegram shortly.</p>
+          </div>
+        </div>
+
+        <div id="status-error" class="status-banner status-error" hidden>
+          <span>❌</span>
+          <div>
+            <strong>Failed to send message.</strong>
+            <p id="error-detail">Please try again or contact us directly.</p>
+          </div>
+        </div>
+
+      </div><!-- /card -->
+    </main><!-- /main-content -->
+
+    <!-- ── About Section ─────────────────────────── -->
+    <section id="about" class="about-section">
+      <div class="about-grid">
+        <div class="about-item">
+          <span class="about-icon">⚡</span>
+          <h3>Instant Delivery</h3>
+          <p>Messages arrive in Telegram within seconds via the official Bot API.</p>
+        </div>
+        <div class="about-item">
+          <span class="about-icon">🔐</span>
+          <h3>Secure</h3>
+          <p>Bot credentials are stored as environment variables, never in the source code.</p>
+        </div>
+        <div class="about-item">
+          <span class="about-icon">📱</span>
+          <h3>Mobile Ready</h3>
+          <p>Fully responsive design — works perfectly on any screen size.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Footer ────────────────────────────────── -->
+    <footer class="app-footer">
+      <p>© 2026 TitanChart · Built by <a href="https://github.com/AKIB473" target="_blank">AKIBUZZAMAN AKIB</a></p>
+    </footer>
+
+  </div><!-- /page-wrapper -->
+
+  <script src="main.js"></script>
+
+</body>
+</html>
