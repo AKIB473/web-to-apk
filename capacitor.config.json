@@ -1,0 +1,12 @@
+{
+  "$schema": "https://capacitorjs.com/docs/v3/config",
+  "appId": "com.webtoank.app",
+  "appName": "WebToAPK",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
