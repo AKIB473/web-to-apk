@@ -1,13 +1,17 @@
 name: Build Android APK
 
 # ─────────────────────────────────────────────────────────────────────────────
-# REQUIRED SECRETS (add these in Settings > Secrets > Actions):
-#   KEYSTORE_BASE64          - base64 encoded .jks keystore file
-#   SIGNING_STORE_PASSWORD   - keystore password
-#   SIGNING_KEY_ALIAS        - key alias inside the keystore
-#   SIGNING_KEY_PASSWORD     - key password
+# For a properly signed APK (required for Play Store), add these 4 secrets:
+#   Settings > Secrets and variables > Actions > New repository secret
 #
-# Run the "Generate Keystore" workflow first if you don't have these yet.
+#   KEYSTORE_BASE64          base64 of your .jks file
+#   SIGNING_STORE_PASSWORD   keystore password
+#   SIGNING_KEY_ALIAS        key alias
+#   SIGNING_KEY_PASSWORD     key password
+#
+# Without secrets: a demo keystore is auto-generated and used.
+# The APK will work on any Android device but is NOT suitable for Play Store.
+# Run the "Generate Keystore" workflow to create a real permanent keystore.
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -94,34 +98,13 @@ jobs:
     needs: build-web
     outputs:
       version: ${{ steps.version.outputs.version }}
+      signed: ${{ steps.keystore.outputs.signed }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Check signing secrets
-        run: |
-          MISSING=""
-          [ -z "${{ secrets.KEYSTORE_BASE64 }}"          ] && MISSING="$MISSING KEYSTORE_BASE64"
-          [ -z "${{ secrets.SIGNING_STORE_PASSWORD }}"   ] && MISSING="$MISSING SIGNING_STORE_PASSWORD"
-          [ -z "${{ secrets.SIGNING_KEY_ALIAS }}"        ] && MISSING="$MISSING SIGNING_KEY_ALIAS"
-          [ -z "${{ secrets.SIGNING_KEY_PASSWORD }}"     ] && MISSING="$MISSING SIGNING_KEY_PASSWORD"
-
-          if [ -n "$MISSING" ]; then
-            echo ""
-            echo "ERROR: Missing required GitHub Secrets:$MISSING"
-            echo ""
-            echo "To fix this:"
-            echo "  1. Go to: your repo > Settings > Secrets and variables > Actions"
-            echo "  2. Run the 'Generate Keystore' workflow to create your keystore"
-            echo "  3. Follow the instructions in the downloaded artifact"
-            echo "  4. Add all 4 secrets, then re-run this workflow"
-            echo ""
-            exit 1
-          fi
-          echo "All signing secrets present"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -179,34 +162,14 @@ jobs:
         run: |
           sed -i "s/versionCode .*/versionCode ${{ steps.version.outputs.code }}/" android/app/build.gradle
           sed -i "s/versionName .*/versionName \"${{ steps.version.outputs.version }}\"/" android/app/build.gradle
-          echo "Version set: code=${{ steps.version.outputs.code }} name=${{ steps.version.outputs.version }}"
 
-      - name: Decode keystore
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/release.keystore
-          BYTES=$(wc -c < android/app/release.keystore)
-          echo "Keystore written: $BYTES bytes"
-          if [ "$BYTES" -lt 100 ]; then
-            echo "ERROR: Keystore file is too small ($BYTES bytes). KEYSTORE_BASE64 secret may be invalid."
-            exit 1
-          fi
-
-      - name: Verify keystore
-        run: |
-          keytool -list \
-            -keystore android/app/release.keystore \
-            -storepass "${{ secrets.SIGNING_STORE_PASSWORD }}" \
-            -alias "${{ secrets.SIGNING_KEY_ALIAS }}" \
-            -noprompt 2>&1 | head -10
-          echo "Keystore verified"
-        env:
-          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
-
-      - name: Write signing config to build.gradle
+      - name: Setup keystore
+        id: keystore
         run: python3 setup_keystore.py android/app/build.gradle
         env:
-          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
 
       - name: Build Release APK
@@ -234,10 +197,8 @@ jobs:
         if: inputs.build_type == 'debug'
         run: cd android && ./gradlew assembleDebug --no-daemon 2>&1 | tail -20
 
-      - name: List all output files
-        run: |
-          echo "APK/AAB files:"
-          find android/app/build/outputs -name "*.apk" -o -name "*.aab" 2>/dev/null
+      - name: List output files
+        run: find android/app/build/outputs -name "*.apk" -o -name "*.aab" 2>/dev/null | head -10
 
       - name: Rename outputs
         run: |
@@ -248,7 +209,7 @@ jobs:
           [ -f "$APK" ] && mv "$APK" "android/app/build/outputs/apk/release/WebToAPK-v${V}-${D}.apk" && echo "APK renamed"
           [ -f "$AAB" ] && mv "$AAB" "android/app/build/outputs/bundle/release/WebToAPK-v${V}-${D}.aab" && echo "AAB renamed"
 
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: APK-v${{ steps.version.outputs.version }}
@@ -256,10 +217,10 @@ jobs:
           retention-days: 30
           if-no-files-found: error
 
-      - name: Upload AAB artifact
+      - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
-          name: AAB-v${{ needs.build-android.outputs.version || steps.version.outputs.version }}
+          name: AAB-v${{ steps.version.outputs.version }}
           path: android/app/build/outputs/bundle/release/*.aab
           retention-days: 30
           if-no-files-found: error
@@ -275,17 +236,13 @@ jobs:
       - name: Build summary
         if: always()
         run: |
-          echo "## Android Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "| Item | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| Version | v${{ steps.version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Build Code | ${{ steps.version.outputs.code }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Triggered by | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
-          APK=$(find android/app/build/outputs/apk -name "*.apk" 2>/dev/null | head -1)
-          AAB=$(find android/app/build/outputs/bundle -name "*.aab" 2>/dev/null | head -1)
-          [ -n "$APK" ] && echo "| APK | $(basename $APK) |" >> $GITHUB_STEP_SUMMARY
-          [ -n "$AAB" ] && echo "| AAB | $(basename $AAB) |" >> $GITHUB_STEP_SUMMARY
 
   # ── Job 4: GitHub Release ───────────────────────────────────────────────────
   release:
@@ -324,11 +281,6 @@ jobs:
 
             ### Changes
             ${{ github.event.head_commit.message }}
-
-            ### Install APK
-            1. Transfer APK to your Android device
-            2. Enable "Install from unknown sources" in Settings
-            3. Open the APK file and install
           files: release-files/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
